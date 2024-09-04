@@ -1,50 +1,54 @@
 import express from 'express';
 import axios from 'axios';
-import puppeteer from 'puppeteer';
+import cors from 'cors'; // Import cors package
 
 const app = express();
 
+// Use CORS middleware
+app.use(cors());
+
 app.get('/', (req, res) => {
-  res.send("Server is ready");
+    res.send("Server is ready");
 });
 
-app.get('/api/ocean', async (req, res) => {
-  try {
-    // Launch the browser
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
+app.get('/api/weather', async (req, res) => {
+    const apiKey = '644b1b0c553a0875ae8fa847850e7302'; // Replace with your actual API key
+    const city = req.query.city || 'Kolkata'; // Default city if none is provided
 
-    // Navigate to the target website
-    await page.goto('https://incois.gov.in/portal/osf/Alerts.html', { waitUntil: 'networkidle2' });
+    try {
+        const response = await axios.get('https://api.openweathermap.org/data/2.5/weather', {
+            params: {
+                q: city,
+                appid: apiKey,
+                units: 'metric' // You can change this to 'imperial' if you prefer Fahrenheit
+            }
+        });
 
-    // Wait for the specific table or container to load
-    await page.waitForSelector('table'); // Adjust this selector based on the actual table's HTML
+        const weatherData = response.data;
 
-    // Extract the table data
-    const tableData = await page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll('table tr')); // Adjust the selector as necessary
+        console.log('Weather Data:', weatherData);
+        const temp = weatherData.main.temp;
+        const humidity = weatherData.main.humidity;
+        const windSpeed = weatherData.wind.speed;
+        const description = weatherData.weather[0].description;
+        const cityName = weatherData.name;
+        const formattedData = {
+            city: cityName,
+            temperature: `${temp} °C`,
+            humidity: `${humidity} %`,
+            windSpeed: `${windSpeed} m/s`,
+            description: description.charAt(0).toUpperCase() + description.slice(1) // Capitalize first letter
+        };
 
-      return rows.map(row => {
-        const columns = Array.from(row.querySelectorAll('td')).map(column => column.innerText.trim());
-        return columns;
-      });
-    });
-
-    console.log('Extracted Table Data:', tableData);
-
-    // Send the extracted data as a JSON response
-    res.json(tableData);
-
-    // Close the browser
-    await browser.close();
-  } catch (error) {
-    console.error('An error occurred:', error);
-    res.status(500).send('An error occurred while fetching the data.');
-  }
+        res.json(formattedData);
+    } catch (error) {
+        console.error('Error fetching weather data:', error.response ? error.response.data : error.message);
+        res.status(500).send('Error fetching weather data');
+    }
 });
 
-const port = process.env.PORT || 8000;
+const port = process.env.PORT || 3000;
 
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
